@@ -22,6 +22,11 @@ from superset import config, utils
 from superset.connectors.connector_registry import ConnectorRegistry
 from superset.security import SupersetSecurityManager
 
+from flask_cas import CAS
+from flask_cas import login_required
+from flask_cas import logout
+from flask_login import login_user
+
 APP_DIR = os.path.dirname(__file__)
 CONFIG_MODULE = os.environ.get('SUPERSET_CONFIG', 'superset.config')
 
@@ -34,6 +39,11 @@ with open(APP_DIR + '/static/assets/backendSync.json', 'r') as f:
 app = Flask(__name__)
 app.config.from_object(CONFIG_MODULE)
 conf = app.config
+
+cas = CAS(app, '/cas')
+# app.config['CAS_SERVER'] = 'https://sso.xx.com'
+# app.config['CAS_LOGIN_ROUTE'] = '/cas/login'
+# app.config['CAS_AFTER_LOGIN'] = 'index'
 
 #################################################################
 # Handling manifest file logic at app start
@@ -148,8 +158,18 @@ for middleware in app.config.get('ADDITIONAL_MIDDLEWARE'):
 
 class MyIndexView(IndexView):
     @expose('/')
+    @login_required
     def index(self):
+        username = cas.username
+        if username:
+            user = self.appbuilder.sm.auth_user_remote_user(username)
+            if user is not None:
+                login_user(user)
         return redirect('/superset/welcome')
+
+    @expose('/logout/')
+    def logout(self):
+        return logout()
 
 
 custom_sm = app.config.get('CUSTOM_SECURITY_MANAGER') or SupersetSecurityManager
